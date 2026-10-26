@@ -1,0 +1,20 @@
+server:
+  port: 8080
+
+spring:
+  web:
+    locale: pt_BR
+    locale-resolver: fixed
+  data:
+    mongodb:
+      uri: ${MONGO_URI:mongodb://localhost:27017/contadorhoras}
+      auto-index-creation: true
+
+app:
+  jwt:
+    # Mínimo de 32 caracteres. Em produção vem do .env (JWT_SECRET).
+    secret: ${JWT_SECRET:dev-secret-troque-este-valor-com-32-chars-ou-mais}
+    expiration-hours: ${JWT_EXPIRATION_HOURS:12}
+  security:
+    max-failed-attempts: 5
+    lock-minutes: 15

@@ -1,0 +1,242 @@
+@if (error()) { <div class="error">{{ error() }}</div> }
+
+<div class="panels">
+  <!-- Contador do dia: Dia / Pret Dia / Faltantes -->
+  <section class="card today">
+    <h2>Hoje <span class="muted">· {{ todayLabel }}</span></h2>
+    <label for="today-worked">Horas feitas no dia <small class="muted">(chamados)</small></label>
+    <div class="stepper big">
+      <button type="button" (click)="stepToday(-1)" aria-label="Diminuir">−</button>
+      <input id="today-worked" type="number" min="0" max="24" [step]="step()"
+             [ngModel]="todayEntry().workedHours" (ngModelChange)="setTodayWorked($event)">
+      <button type="button" (click)="stepToday(1)" aria-label="Aumentar">+</button>
+    </div>
+    <div class="stats">
+      <div><span class="k">Pret. dia</span><span class="v planned">{{ todayEntry().plannedHours | hours }}</span></div>
+      @if (todayEntry().meetingHours > 0) {
+        <div><span class="k">Reunião/treino</span><span class="v meeting">{{ todayEntry().meetingHours | hours }}</span></div>
+      }
+      @if (todayRemaining() >= 0) {
+        <div><span class="k">Faltantes</span><span class="v">{{ todayRemaining() | hours }}</span></div>
+      } @else {
+        <div><span class="k">Excedente</span><span class="v worked">{{ -todayRemaining() | hours }}</span></div>
+      }
+    </div>
+  </section>
+
+  @if (summary(); as s) {
+    <!-- Resultado do mês -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Mês <span class="muted">· {{ monthLabel() }}</span></h2>
+        <button type="button" class="eye" (click)="toggleMoney()" [attr.aria-pressed]="showMoney()"
+                [attr.aria-label]="showMoney() ? 'Ocultar valores em R$' : 'Mostrar valores em R$'"
+                [title]="showMoney() ? 'Ocultar valores em R$' : 'Mostrar valores em R$'">
+          <app-eye-icon [open]="showMoney()" />
+        </button>
+      </div>
+      <div class="stats cols">
+        <div><span class="k">Feitas no mês <small>(chamados)</small></span><span class="v worked">{{ s.workedHours | hours }}</span></div>
+        <div><span class="k">Reuniões / treinamentos</span><span class="v meeting">{{ s.meetingHours | hours }}</span></div>
+        <div><span class="k">Pretendidas</span><span class="v planned">{{ s.plannedHours | hours }}</span></div>
+        <div>
+          <span class="k">{{ s.remainingHours >= 0 ? 'Faltam' : 'Acima do plano' }}</span>
+          <span class="v">{{ (s.remainingHours >= 0 ? s.remainingHours : -s.remainingHours) | hours }}</span>
+        </div>
+        <div><span class="k">Resultado mês <small>(chamados + reuniões)</small></span><span class="v worked">{{ s.workedValue | brl: !showMoney() }}</span></div>
+        <div><span class="k">Previsto (pretendidas)</span><span class="v planned">{{ s.plannedValue | brl: !showMoney() }}</span></div>
+        <div><span class="k">Valor hora</span><span class="v">{{ s.hourlyRate | brl: !showMoney() }}</span></div>
+      </div>
+    </section>
+
+    <!-- Saldo acumulado para o sistema de chamados -->
+    <section class="card">
+      <h2>Saldo de horas <span class="muted">· só chamados</span></h2>
+      <div class="balance">
+        <div class="line"><span>Total horas <small>(meses anteriores)</small></span><b>{{ s.previousTotal | hours }}</b></div>
+        <div class="line"><span>+ Feitas no mês</span><b>{{ s.workedHours | hours }}</b></div>
+        <div class="line total"><span>Saldo atual</span><b>{{ s.currentBalance | hours }}</b></div>
+        @if (s.overallTotal !== s.currentBalance) {
+          <div class="line"><span>Saldo de todos os meses lançados</span><b>{{ s.overallTotal | hours }}</b></div>
+        }
+      </div>
+    </section>
+  }
+</div>
+
+<section class="card calendar">
+  <div class="toolbar">
+    <div class="nav">
+      <button class="btn ghost small" (click)="changeMonth(-1)" aria-label="Mês anterior">‹</button>
+      <h1>{{ monthLabel() }}</h1>
+      <button class="btn ghost small" (click)="changeMonth(1)" aria-label="Próximo mês">›</button>
+      @if (!isCurrentMonth()) {
+        <button class="btn ghost small" (click)="goToCurrentMonth()">Hoje</button>
+      }
+    </div>
+    <div class="legend">
+      <span><i class="dot worked"></i>Trabalhadas</span>
+      <span><i class="dot planned"></i>Pretendidas</span>
+      <span><i class="dot meeting"></i>Reunião/treino</span>
+      <button class="btn small" (click)="planOpen.set(true)">Planejar mês</button>
+    </div>
+  </div>
+  <p class="hint">
+    <span class="hint-mouse">Dê um duplo clique em um dia (ou Enter) para editar as horas.</span>
+    <span class="hint-touch">Toque e segure um dia para editar as horas.</span>
+  </p>
+
+  <div class="grid" [class.with-week]="weeklyMode()">
+    <div class="row head">
+      @for (d of weekDays; track d.key) {
+        <div class="hcell"><span class="long">{{ d.label }}</span><span class="short">{{ d.short }}</span></div>
+      }
+      @if (weeklyMode()) { <div class="hcell week-col">Semana</div> }
+    </div>
+
+    @for (row of rows(); track $index) {
+      <div class="row">
+        @for (c of row.cells; track c.date) {
+          <div class="cell" [class.out]="!c.inMonth" [class.today]="c.isToday"
+               [attr.tabindex]="c.inMonth ? 0 : null"
+               (dblclick)="onDblClick(c)" (keydown.enter)="open(c)"
+               (pointerdown)="onPointerDown($event, c)" (pointermove)="onPointerMove($event)"
+               (pointerup)="cancelPress()" (pointercancel)="cancelPress()" (pointerleave)="cancelPress()"
+               (contextmenu)="$event.preventDefault()"
+               [attr.aria-label]="c.inMonth ? 'Dia ' + c.day + ', duplo clique ou toque longo para editar' : null">
+            <div class="day">
+              {{ c.day }}
+              <span class="marks">
+                @if (c.entry?.tickets?.length) {
+                  <span class="tickets-badge" [title]="ticketTitle(c.entry)">{{ c.entry?.tickets?.length }} ch.</span>
+                }
+                @if (c.entry?.note) { <span class="note" [title]="c.entry?.note">●</span> }
+              </span>
+            </div>
+            @if (c.entry; as e) {
+              <div class="hours">
+                <span class="worked">{{ e.workedHours | hours }}</span>
+                <span class="planned">/ {{ e.plannedHours | hours }}</span>
+                @if (e.meetingHours > 0) {
+                  <span class="meeting" [title]="'Reunião/treinamento: ' + (e.meetingHours | hours)">+{{ e.meetingHours | hours }}</span>
+                }
+              </div>
+              <div class="bar"><span [style.width.%]="progress(e)"
+                [class.done]="e.plannedHours > 0 && e.workedHours + e.meetingHours >= e.plannedHours"></span></div>
+            }
+          </div>
+        }
+        @if (weeklyMode() && row.summary; as w) {
+          <div class="cell week-col">
+            <div class="wk-title">Semana {{ w.number }}</div>
+            <div class="wk-line"><span>Totais</span><b class="worked">{{ w.workedHours | hours }}</b></div>
+            <div class="wk-line"><span>Pret.</span><b class="planned">{{ w.plannedHours | hours }}</b></div>
+            @if (w.meetingHours > 0) {
+              <div class="wk-line"><span>Reun.</span><b class="meeting">{{ w.meetingHours | hours }}</b></div>
+            }
+            <div class="wk-line"><span>Saldo</span><b>{{ w.workedValue | brl: !showMoney() }}</b></div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</section>
+
+<!-- Modal de edição do dia -->
+@if (editing(); as e) {
+  <div class="backdrop" (click)="editing.set(null)">
+    <div class="card modal day-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <h2>{{ editTitle(e.date) }}</h2>
+      @if (editError()) { <div class="error">{{ editError() }}</div> }
+      <form (ngSubmit)="save()">
+        <div class="field">
+          <label for="m-worked">Horas trabalhadas <small class="muted">(chamados)</small></label>
+          <div class="stepper">
+            <button type="button" (click)="stepEdit('workedHours', -1)" aria-label="Diminuir">−</button>
+            <input id="m-worked" name="worked" type="number" min="0" max="24" [step]="step()"
+                   [(ngModel)]="e.workedHours" autofocus>
+            <button type="button" (click)="stepEdit('workedHours', 1)" aria-label="Aumentar">+</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="m-meeting">Horas de reunião / treinamento</label>
+          <div class="stepper">
+            <button type="button" (click)="stepEdit('meetingHours', -1)" aria-label="Diminuir">−</button>
+            <input id="m-meeting" name="meeting" type="number" min="0" max="24" [step]="step()"
+                   [(ngModel)]="e.meetingHours" aria-describedby="m-meeting-hint">
+            <button type="button" (click)="stepEdit('meetingHours', 1)" aria-label="Aumentar">+</button>
+          </div>
+          <p id="m-meeting-hint" class="hint">Entra no valor (R$), mas não no saldo de horas dos chamados.</p>
+        </div>
+        <div class="field">
+          <label for="m-planned">Horas pretendidas</label>
+          <div class="stepper">
+            <button type="button" (click)="stepEdit('plannedHours', -1)" aria-label="Diminuir">−</button>
+            <input id="m-planned" name="planned" type="number" min="0" max="24" [step]="step()"
+                   [(ngModel)]="e.plannedHours">
+            <button type="button" (click)="stepEdit('plannedHours', 1)" aria-label="Aumentar">+</button>
+          </div>
+        </div>
+        <fieldset class="field tickets">
+          <legend>Chamados</legend>
+          @if (e.tickets.length) {
+            <div class="ticket-row head" aria-hidden="true">
+              <span>Número</span><span>Nome</span><span>Horas</span><span></span>
+            </div>
+          }
+          @for (t of e.tickets; track $index; let i = $index) {
+            <div class="ticket-row">
+              <input [name]="'t-num-' + i" [(ngModel)]="t.number" maxlength="40" placeholder="Nº"
+                     [attr.aria-label]="'Número do chamado ' + (i + 1)">
+              <input [name]="'t-name-' + i" [(ngModel)]="t.name" maxlength="200" placeholder="Nome / assunto"
+                     [attr.aria-label]="'Nome do chamado ' + (i + 1)">
+              <input [name]="'t-hours-' + i" type="number" min="0" max="24" [step]="step()"
+                     [ngModel]="t.hours" (ngModelChange)="setTicketHours(t, $event)"
+                     [attr.aria-label]="'Horas do chamado ' + (i + 1)">
+              <button type="button" class="remove" (click)="removeTicket(i)"
+                      [attr.aria-label]="'Remover chamado ' + (i + 1)" title="Remover">×</button>
+            </div>
+          }
+          <div class="ticket-foot">
+            <button type="button" class="btn ghost small" (click)="addTicket()">+ Adicionar chamado</button>
+            @if (e.tickets.length) {
+              <span class="hint">Total em chamados: {{ ticketsTotal(e) | hours }}</span>
+            }
+          </div>
+          <p class="hint">As horas de cada chamado somam nas horas trabalhadas do dia.</p>
+        </fieldset>
+        <div class="field">
+          <label for="m-note">Observação</label>
+          <textarea id="m-note" name="note" rows="2" maxlength="500" [(ngModel)]="e.note"></textarea>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn danger" (click)="save(true)" [disabled]="saving()">Limpar dia</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn ghost" (click)="editing.set(null)">Cancelar</button>
+          <button type="submit" class="btn" [disabled]="saving()">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- Modal de planejamento do mês -->
+@if (planOpen()) {
+  <div class="backdrop" (click)="planOpen.set(false)">
+    <div class="card modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <h2>Planejar {{ monthLabel() }}</h2>
+      <p>Preenche as <b>horas pretendidas</b> de cada dia com o planejamento padrão por dia da semana
+        (definido em <a routerLink="/configuracoes">Configurações</a>). As horas trabalhadas não são alteradas.</p>
+      @if (settings(); as st) {
+        <p class="hint">
+          @for (d of weekDays; track d.key) { {{ d.short }} {{ st.defaultPlanned[d.key] | hours }}{{ $last ? '' : ' · ' }} }
+        </p>
+      }
+      <div class="actions">
+        <button class="btn ghost" (click)="planOpen.set(false)">Cancelar</button>
+        <button class="btn ghost" (click)="applyPlan(true)">Sobrescrever todos</button>
+        <button class="btn" (click)="applyPlan(false)">Só dias sem planejamento</button>
+      </div>
+    </div>
+  </div>
+}

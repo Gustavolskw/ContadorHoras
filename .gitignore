@@ -1,0 +1,9 @@
+.env
+backups/
+backend/target/
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+# Planilha e prints pessoais (dados de horas/valores) ficam fora do repositório.
+EXEMPLO/
