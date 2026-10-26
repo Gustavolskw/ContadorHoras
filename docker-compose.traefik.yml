@@ -1,0 +1,38 @@
+# Override para publicar atrás de um Traefik já rodando no servidor
+# (padrão de https://doc.traefik.io/traefik/expose/docker/basic/: rede externa compartilhada "proxy").
+#
+#   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+#   (o contador.sh faz isso sozinho quando TRAEFIK_ENABLED=true no .env)
+#
+# O Traefik cuida do domínio e do certificado (Let's Encrypt) e encaminha HTTP para o nginx na porta 80.
+
+networks:
+  proxy:
+    external: true
+    name: ${TRAEFIK_NETWORK:-proxy}
+
+services:
+  nginx:
+    # Quem recebe 80/443 é o Traefik; o gateway não publica portas no host.
+    ports: !reset []
+    networks:
+      - internal
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-proxy}"
+      - "traefik.http.services.contador-horas.loadbalancer.server.port=80"
+
+      # HTTPS - domínio do sistema
+      - "traefik.http.routers.contador-horas.rule=Host(`${APP_DOMAIN:?defina APP_DOMAIN no .env}`)"
+      - "traefik.http.routers.contador-horas.entrypoints=${TRAEFIK_ENTRYPOINT_HTTPS:-websecure}"
+      - "traefik.http.routers.contador-horas.tls=true"
+      - "traefik.http.routers.contador-horas.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
+      - "traefik.http.routers.contador-horas.service=contador-horas"
+
+      # HTTP -> HTTPS
+      - "traefik.http.routers.contador-horas-http.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.routers.contador-horas-http.entrypoints=${TRAEFIK_ENTRYPOINT_HTTP:-web}"
+      - "traefik.http.routers.contador-horas-http.middlewares=contador-horas-redirect-https"
+      - "traefik.http.middlewares.contador-horas-redirect-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.contador-horas-redirect-https.redirectscheme.permanent=true"

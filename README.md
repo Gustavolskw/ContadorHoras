@@ -42,6 +42,21 @@ Equivalência com a planilha original:
 | Dia / Pret Dia / faltantes | Card "Hoje" |
 | Total Horas + Feitas no mês = Saldo Atual | Card "Saldo de horas" |
 
+## Arquitetura
+
+```
+                 ┌──────────────── rede Docker interna ────────────────┐
+ Internet ──▶ nginx (gateway) ──/api──▶ backend ×N (Spring Boot) ──▶ mongo
+ [Traefik]        │  80/443                       (balanceado)
+                  └──── / ────▶ frontend (Angular estático)
+```
+
+- **nginx (gateway)** em `docker/nginx/` é a única entrada externa: TLS (certificado autoassinado gerado no
+  primeiro start, ou o seu), cabeçalhos de segurança, gzip, limite de taxa em `/api/auth/` (10/min por IP,
+  com rajada de 10) e **balanceamento** `least_conn` entre as réplicas do backend, com failover.
+- Backend, frontend e MongoDB não publicam portas no host.
+- Mais réplicas do backend: `BACKEND_REPLICAS=3` no `.env` e `./contador.sh start`.
+
 ## Rodando em um servidor Linux
 
 Requisitos: **Docker Engine** com o plugin **Docker Compose** (`docker compose version`), `git` e `curl`.
@@ -57,7 +72,7 @@ chmod +x contador.sh
 No primeiro `start` o script cria o `.env` com senha do MongoDB e segredo JWT aleatórios. **Guarde esse
 arquivo** (e faça backups): sem ele não é possível acessar o banco já existente.
 
-Acesse `http://<ip-do-servidor>:8090` (porta definida em `APP_PORT` no `.env`).
+Acesse `http://<ip-do-servidor>` (portas em `HTTP_PORT`/`HTTPS_PORT` no `.env`; padrão 80 e 443).
 
 ### Comandos
 
@@ -67,7 +82,7 @@ Acesse `http://<ip-do-servidor>:8090` (porta definida em `APP_PORT` no `.env`).
 | `./contador.sh stop` | Para os serviços (os dados continuam no volume `mongo-data`) |
 | `./contador.sh restart` | Para e sobe novamente |
 | `./contador.sh status` | Estado dos containers |
-| `./contador.sh logs [mongo\|backend\|frontend]` | Acompanha os logs |
+| `./contador.sh logs [nginx\|backend\|frontend\|mongo]` | Acompanha os logs |
 | `./contador.sh update` | `git pull` + reconstrói e sobe a nova versão |
 | `./contador.sh backup` | Salva o banco em `backups/contadorhoras-AAAAMMDD-HHMMSS.archive.gz` |
 | `./contador.sh restore <arquivo>` | Restaura um backup (pede confirmação; substitui os dados atuais) |
@@ -81,11 +96,31 @@ Backup diário automático (crontab do usuário que roda o Docker):
 0 3 * * * cd /caminho/ContadorHoras && ./contador.sh backup >> backups/cron.log 2>&1
 ```
 
-### HTTPS / domínio
+### Domínio com Traefik (ex.: VPS Hostinger)
 
-O serviço escuta em HTTP. Para expor na internet, coloque-o atrás de um proxy reverso com TLS
-(Nginx, Caddy, Traefik) apontando para `http://localhost:8090`, e libere no firewall só a porta do proxy.
-O MongoDB não é exposto para fora do Docker.
+Quando o servidor já tem um **Traefik** cuidando das portas 80/443 e do Let's Encrypt, o gateway não
+publica portas: o Traefik encaminha o domínio para ele pela rede compartilhada, seguindo
+[a documentação do Traefik](https://doc.traefik.io/traefik/expose/docker/basic/)
+(`providers.docker.network=proxy`, `exposedbydefault=false`, entrypoints `web`/`websecure`).
+
+1. No DNS, crie um registro **A** do domínio (ex.: `horas.seudominio.com`) para o IP da VPS.
+2. Descubra a rede do Traefik: `docker network ls` (na doc ela se chama `proxy`), o nome do
+   *certresolver* e dos entrypoints configurados no seu Traefik.
+3. No `.env`:
+   ```env
+   TRAEFIK_ENABLED=true
+   APP_DOMAIN=horas.seudominio.com
+   TRAEFIK_NETWORK=proxy
+   TRAEFIK_CERTRESOLVER=letsencrypt
+   TRAEFIK_ENTRYPOINT_HTTPS=websecure
+   TRAEFIK_ENTRYPOINT_HTTP=web
+   ```
+4. `./contador.sh start` — o script inclui `docker-compose.traefik.yml` automaticamente, confere se a rede
+   existe e aguarda a API. HTTP é redirecionado para HTTPS pelo Traefik.
+
+Sem Traefik (modo standalone), o gateway publica 80/443 com o certificado autoassinado. Para um certificado
+real, coloque `server.crt` e `server.key` no volume `nginx-certs` (montado em `/etc/nginx/certs`) e use
+`NGINX_FORCE_HTTPS=true` para redirecionar HTTP para HTTPS. O MongoDB nunca é exposto para fora do Docker.
 
 ## Segurança e dados
 
@@ -103,7 +138,9 @@ O MongoDB não é exposto para fora do Docker.
 ```
 backend/            API Spring Boot (auth, settings, entry = lançamentos e resumos)
 frontend/           Angular (pages/calendar, pages/settings, telas de login/cadastro/recuperação)
-docker-compose.yml  mongo + backend + frontend (nginx servindo o Angular e fazendo proxy de /api)
+docker/nginx/       Gateway nginx (entrada, TLS, balanceamento, limite de taxa)
+docker-compose.yml  mongo + backend + frontend + gateway nginx
+docker-compose.traefik.yml  Override para publicar atrás de um Traefik (rede externa "proxy")
 contador.sh         Script de operação para Linux
 ```
 
