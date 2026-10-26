@@ -14,6 +14,10 @@ de horas para lançar no sistema de chamados.
   **chamados** (número, nome, horas — botão "+" para adicionar) e observação.
 - **Contador de hoje** com botões − / + (ou digitando o valor), horas pretendidas e faltantes.
 - **Planejar mês:** preenche as horas pretendidas com o planejamento padrão por dia da semana.
+- **Horas avulsas do mês** (seção abaixo do calendário): lançamentos com descrição e horas, sem dia
+  específico, opcionalmente **rateados** — mês inteiro ou uma semana, em partes iguais nos dias úteis
+  (seg–sex) ou proporcional ao planejamento padrão. O rateio é calculado ao salvar e aparece nos dias e na
+  coluna Semana.
 - **Resumo do mês e por semana** com valores em R$ (ocultáveis pelo ícone de olho).
 - **Saldo de horas acumulado** de todos os meses (o sistema de chamados não filtra por mês).
 - **Configurações pessoais:** valor da hora, visualização semanal/mensal, saldo inicial, incremento do
@@ -21,11 +25,14 @@ de horas para lançar no sistema de chamados.
 
 ## Regras de cálculo
 
-| Item | Chamados (trabalhadas) | Reunião / treinamento |
-|---|---|---|
-| Valor em R$ (Saldo da semana, Resultado mês) | entra | entra |
-| Saldo de horas (Total horas, Saldo atual) | entra | **não entra** |
-| Faltantes contra as horas pretendidas | entra | entra |
+| Item | Chamados (trabalhadas) | Reunião / treinamento | Horas avulsas |
+|---|---|---|---|
+| Feitas no mês | entra | — | entra |
+| Pretendidas do mês | — | — | **entra** (mesmo valor: não cria diferença) |
+| Valor em R$ (Saldo da semana, Resultado mês) | entra | entra | entra |
+| Saldo de horas (Total horas, Saldo atual) | entra | **não entra** | entra |
+| Faltantes contra as horas pretendidas | entra | entra | neutro (soma nos dois lados) |
+| Semanas / dias do calendário | entra | entra | só a parte rateada |
 
 - **Valor** = horas × valor da hora configurado pelo usuário.
 - **Saldo atual** = saldo inicial + horas de chamados de todos os meses até o mês exibido.

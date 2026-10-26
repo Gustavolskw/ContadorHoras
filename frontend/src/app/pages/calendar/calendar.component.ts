@@ -8,6 +8,7 @@ import { errorMessage } from '../../core/auth.interceptor';
 import { BrlPipe, HoursPipe, isoDate, isoMonth, round2 } from '../../core/format';
 import { Entry, MonthSummary, Settings, Ticket, WEEK_DAYS, WeekSummary } from '../../core/models';
 import { EyeIconComponent } from '../../shared/eye-icon.component';
+import { ExtraHoursComponent } from './extra-hours.component';
 
 interface Cell {
   date: string;
@@ -44,7 +45,7 @@ const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
 
 @Component({
   selector: 'app-calendar',
-  imports: [FormsModule, RouterLink, HoursPipe, BrlPipe, EyeIconComponent],
+  imports: [FormsModule, RouterLink, HoursPipe, BrlPipe, EyeIconComponent, ExtraHoursComponent],
   templateUrl: './calendar.component.html',
   styleUrl: './calendar.component.css',
 })
@@ -313,11 +314,29 @@ export class CalendarComponent implements OnInit {
     this.planOpen.set(false);
   }
 
-  /** Progresso do dia contra o pretendido (chamados + reuniões). */
-  progress(e?: Entry): number {
-    const done = e ? e.workedHours + e.meetingHours : 0;
-    if (!e || e.plannedHours <= 0) return done > 0 ? 100 : 0;
-    return Math.min(100, (done / e.plannedHours) * 100);
+  /** Parte rateada das horas avulsas no dia (soma nas feitas e nas pretendidas do dia). */
+  extraOf(date: string): number {
+    return this.summary()?.extraByDate?.[date] ?? 0;
+  }
+
+  /** Progresso do dia contra o pretendido (chamados + reuniões + avulsas rateadas). */
+  progress(e: Entry | undefined, date: string): number {
+    const extra = this.extraOf(date);
+    const done = (e ? e.workedHours + e.meetingHours : 0) + extra;
+    const planned = (e?.plannedHours ?? 0) + extra;
+    if (planned <= 0) return done > 0 ? 100 : 0;
+    return Math.min(100, (done / planned) * 100);
+  }
+
+  dayDone(e: Entry | undefined, date: string): boolean {
+    const extra = this.extraOf(date);
+    const planned = (e?.plannedHours ?? 0) + extra;
+    return planned > 0 && (e ? e.workedHours + e.meetingHours : 0) + extra >= planned;
+  }
+
+  /** Recarrega só o resumo (ex.: após alterar horas avulsas). */
+  reloadSummary(): void {
+    this.api.summary(this.month()).subscribe(s => this.summary.set(s));
   }
 
   ticketTitle(e?: Entry): string {

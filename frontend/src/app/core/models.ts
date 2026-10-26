@@ -37,13 +37,40 @@ export interface Entry {
   tickets: Ticket[];
 }
 
+export type ExtraDistribution = 'NONE' | 'WORKDAYS' | 'PLAN';
+export type ExtraScope = 'MONTH' | 'WEEK';
+
+/** Horas avulsas do mês: entram nas feitas, nas pretendidas, no saldo e no valor. */
+export interface ExtraHours {
+  id: string;
+  month: string;
+  description: string;
+  hours: number;
+  distribution: ExtraDistribution;
+  scope: ExtraScope | null;
+  week: number | null;
+  /** Rateio por dia (AAAA-MM-DD -> horas); vazio sem rateio. */
+  allocation: Record<string, number>;
+}
+
+export interface ExtraRequest {
+  month: string;
+  description: string;
+  hours: number;
+  distribution: ExtraDistribution;
+  scope: ExtraScope | null;
+  week: number | null;
+}
+
 export interface WeekSummary {
   number: number;
   start: string;
   end: string;
+  /** Inclui a parte rateada das horas avulsas. */
   workedHours: number;
   plannedHours: number;
   meetingHours: number;
+  extraHours: number;
   workedValue: number;
   plannedValue: number;
 }
@@ -56,12 +83,16 @@ export interface MonthSummary {
   workedHours: number;
   plannedHours: number;
   meetingHours: number;
+  /** Horas avulsas do mês (já incluídas em workedHours e plannedHours). */
+  extraHours: number;
   remainingHours: number;
   workedValue: number;
   plannedValue: number;
   previousTotal: number;
   currentBalance: number;
   overallTotal: number;
+  /** Parte rateada das horas avulsas por dia. */
+  extraByDate: Record<string, number>;
 }
 
 export interface Settings {

@@ -12,6 +12,7 @@
   --planned: #c58a15;
   --planned-soft: #fbf1dc;
   --meeting: #7c5cd6;
+  --extra: #0f8b8d;
   --danger: #d14343;
   --danger-soft: #fdeaea;
   --radius: 10px;
@@ -33,6 +34,7 @@
     --planned: #e2ad44;
     --planned-soft: #3a2f18;
     --meeting: #a993f0;
+    --extra: #3cc4c6;
     --danger: #f07070;
     --danger-soft: #3d2222;
     color-scheme: dark;

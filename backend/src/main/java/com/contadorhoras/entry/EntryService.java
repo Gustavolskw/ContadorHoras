@@ -4,7 +4,6 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
-import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -18,11 +17,13 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Service;
 
 import com.contadorhoras.common.ApiException;
+import com.contadorhoras.common.MonthWeeks;
 import com.contadorhoras.entry.DayEntry.Ticket;
 import com.contadorhoras.entry.EntryDtos.EntryRequest;
 import com.contadorhoras.entry.EntryDtos.EntryResponse;
 import com.contadorhoras.entry.EntryDtos.MonthSummary;
 import com.contadorhoras.entry.EntryDtos.WeekSummary;
+import com.contadorhoras.extra.ExtraHoursService;
 import com.contadorhoras.settings.SettingsService;
 import com.contadorhoras.settings.UserSettings;
 
@@ -32,11 +33,14 @@ public class EntryService {
     private final DayEntryRepository repository;
     private final SettingsService settingsService;
     private final MongoTemplate mongo;
+    private final ExtraHoursService extraHours;
 
-    public EntryService(DayEntryRepository repository, SettingsService settingsService, MongoTemplate mongo) {
+    public EntryService(DayEntryRepository repository, SettingsService settingsService, MongoTemplate mongo,
+                        ExtraHoursService extraHours) {
         this.repository = repository;
         this.settingsService = settingsService;
         this.mongo = mongo;
+        this.extraHours = extraHours;
     }
 
     public List<EntryResponse> month(String userId, String month) {
@@ -115,6 +119,7 @@ public class EntryService {
 
     public MonthSummary summary(String userId, String month) {
         YearMonth ym = parseMonth(month);
+        String monthKey = ym.toString();
         UserSettings settings = settingsService.get(userId);
         double rate = settings.getHourlyRate();
         LocalDate first = ym.atDay(1);
@@ -122,48 +127,56 @@ public class EntryService {
 
         Map<String, DayEntry> byDate = repository.findRange(userId, first.toString(), last.toString())
                 .stream().collect(Collectors.toMap(DayEntry::getDate, Function.identity()));
+        // Parte rateada das horas avulsas em cada dia: soma nas feitas E nas pretendidas do dia/semana.
+        Map<String, Double> extraByDate = extraHours.allocationByDate(userId, monthKey);
 
         // Semanas de segunda a domingo, contando apenas os dias que pertencem ao mês.
         List<WeekSummary> weeks = new ArrayList<>();
         double monthWorked = 0;
         double monthPlanned = 0;
         double monthMeeting = 0;
-        LocalDate weekStart = first;
         int number = 1;
-        while (!weekStart.isAfter(last)) {
-            LocalDate sunday = weekStart.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
-            LocalDate weekEnd = sunday.isAfter(last) ? last : sunday;
+        for (List<LocalDate> days : MonthWeeks.of(ym)) {
             double worked = 0;
             double planned = 0;
             double meeting = 0;
-            for (LocalDate d = weekStart; !d.isAfter(weekEnd); d = d.plusDays(1)) {
+            double extra = 0;
+            for (LocalDate d : days) {
                 DayEntry e = byDate.get(d.toString());
                 if (e != null) {
                     worked += e.getWorkedHours();
                     planned += e.getPlannedHours();
                     meeting += e.getMeetingHours();
                 }
+                extra += extraByDate.getOrDefault(d.toString(), 0.0);
             }
-            weeks.add(new WeekSummary(number++, weekStart.toString(), weekEnd.toString(),
-                    round(worked), round(planned), round(meeting),
-                    round((worked + meeting) * rate), round(planned * rate)));
+            weeks.add(new WeekSummary(number++, days.get(0).toString(), days.get(days.size() - 1).toString(),
+                    round(worked + extra), round(planned + extra), round(meeting), round(extra),
+                    round((worked + extra + meeting) * rate), round((planned + extra) * rate)));
             monthWorked += worked;
             monthPlanned += planned;
             monthMeeting += meeting;
-            weekStart = weekEnd.plusDays(1);
         }
 
-        // Saldo de horas: somente horas de chamados (workedHours), sem reuniões.
+        // Horas avulsas do mês (rateadas ou não): somam nas feitas E nas pretendidas (sem criar
+        // diferença entre as duas), entram no saldo e no valor.
+        double extra = extraHours.sumForMonth(userId, monthKey);
+        double workedTotal = monthWorked + extra;
+        double plannedTotal = monthPlanned + extra;
+
+        // Saldo de horas: chamados + avulsas, sem reuniões.
         double initial = settings.getInitialBalance();
-        double previousTotal = initial + sumWorked(userId, Criteria.where("date").lt(first.toString()));
-        double overallTotal = initial + sumWorked(userId, null);
+        double previousTotal = initial + sumWorked(userId, Criteria.where("date").lt(first.toString()))
+                + extraHours.sumBefore(userId, monthKey);
+        double overallTotal = initial + sumWorked(userId, null) + extraHours.sumAll(userId);
 
         return new MonthSummary(
-                ym.toString(), rate, settings.getCalcMode().name(), weeks,
-                round(monthWorked), round(monthPlanned), round(monthMeeting),
-                round(monthPlanned - monthWorked - monthMeeting),
-                round((monthWorked + monthMeeting) * rate), round(monthPlanned * rate),
-                round(previousTotal), round(previousTotal + monthWorked), round(overallTotal));
+                monthKey, rate, settings.getCalcMode().name(), weeks,
+                round(workedTotal), round(plannedTotal), round(monthMeeting), round(extra),
+                round(plannedTotal - workedTotal - monthMeeting),
+                round((workedTotal + monthMeeting) * rate), round(plannedTotal * rate),
+                round(previousTotal), round(previousTotal + workedTotal), round(overallTotal),
+                extraByDate);
     }
 
     private double sumWorked(String userId, Criteria extra) {

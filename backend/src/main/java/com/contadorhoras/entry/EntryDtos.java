@@ -1,6 +1,7 @@
 package com.contadorhoras.entry;
 
 import java.util.List;
+import java.util.Map;
 
 import com.contadorhoras.entry.DayEntry.Ticket;
 
@@ -45,7 +46,7 @@ public final class EntryDtos {
 
     /** Colunas da planilha: Totais (horas da semana) e Saldo (valor da semana, chamados + reuniões). */
     public record WeekSummary(int number, String start, String end,
-                              double workedHours, double plannedHours, double meetingHours,
+                              double workedHours, double plannedHours, double meetingHours, double extraHours,
                               double workedValue, double plannedValue) {
     }
 
@@ -54,11 +55,14 @@ public final class EntryDtos {
             double hourlyRate,
             String calcMode,
             List<WeekSummary> weeks,
-            /* "Feitas no mês" / "Mes" */
+            /* "Feitas no mês" / "Mes": dias + horas avulsas */
             double workedHours,
+            /* Pretendidas dos dias + horas avulsas */
             double plannedHours,
             /* Reuniões/treinamentos: entram no valor, não no saldo de horas */
             double meetingHours,
+            /* Horas avulsas do mês (já incluídas em workedHours e plannedHours) */
+            double extraHours,
             /* Pretendidas - (trabalhadas + reuniões) no mês */
             double remainingHours,
             /* "Resultado Mês": (trabalhadas + reuniões) x valor hora */
@@ -66,9 +70,11 @@ public final class EntryDtos {
             double plannedValue,
             /* "Total Horas": saldo inicial + tudo o que foi feito antes deste mês */
             double previousTotal,
-            /* "Saldo Atual": Total Horas + Feitas no mês (somente chamados) */
+            /* "Saldo Atual": Total Horas + Feitas no mês (chamados + avulsas, sem reuniões) */
             double currentBalance,
-            /* Saldo inicial + todos os meses lançados */
-            double overallTotal) {
+            /* Saldo inicial + todos os meses lançados (dias + avulsas) */
+            double overallTotal,
+            /* Parte rateada das horas avulsas por dia (yyyy-MM-dd -> horas) */
+            Map<String, Double> extraByDate) {
     }
 }

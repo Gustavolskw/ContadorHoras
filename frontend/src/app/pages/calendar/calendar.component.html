@@ -36,7 +36,10 @@
         </button>
       </div>
       <div class="stats cols">
-        <div><span class="k">Feitas no mês <small>(chamados)</small></span><span class="v worked">{{ s.workedHours | hours }}</span></div>
+        <div><span class="k">Feitas no mês <small>{{ s.extraHours > 0 ? '(chamados + avulsas)' : '(chamados)' }}</small></span><span class="v worked">{{ s.workedHours | hours }}</span></div>
+        @if (s.extraHours > 0) {
+          <div><span class="k">Horas avulsas</span><span class="v extra">{{ s.extraHours | hours }}</span></div>
+        }
         <div><span class="k">Reuniões / treinamentos</span><span class="v meeting">{{ s.meetingHours | hours }}</span></div>
         <div><span class="k">Pretendidas</span><span class="v planned">{{ s.plannedHours | hours }}</span></div>
         <div>
@@ -54,7 +57,12 @@
       <h2>Saldo de horas <span class="muted">· só chamados</span></h2>
       <div class="balance">
         <div class="line"><span>Total horas <small>(meses anteriores)</small></span><b>{{ s.previousTotal | hours }}</b></div>
-        <div class="line"><span>+ Feitas no mês</span><b>{{ s.workedHours | hours }}</b></div>
+        @if (s.extraHours > 0) {
+          <div class="line"><span>+ Feitas nos dias</span><b>{{ s.workedHours - s.extraHours | hours }}</b></div>
+          <div class="line"><span>+ Horas avulsas</span><b class="extra">{{ s.extraHours | hours }}</b></div>
+        } @else {
+          <div class="line"><span>+ Feitas no mês</span><b>{{ s.workedHours | hours }}</b></div>
+        }
         <div class="line total"><span>Saldo atual</span><b>{{ s.currentBalance | hours }}</b></div>
         @if (s.overallTotal !== s.currentBalance) {
           <div class="line"><span>Saldo de todos os meses lançados</span><b>{{ s.overallTotal | hours }}</b></div>
@@ -78,6 +86,7 @@
       <span><i class="dot worked"></i>Trabalhadas</span>
       <span><i class="dot planned"></i>Pretendidas</span>
       <span><i class="dot meeting"></i>Reunião/treino</span>
+      <span><i class="dot extra"></i>Avulsas</span>
       <button class="btn small" (click)="planOpen.set(true)">Planejar mês</button>
     </div>
   </div>
@@ -113,16 +122,20 @@
                 @if (c.entry?.note) { <span class="note" [title]="c.entry?.note">●</span> }
               </span>
             </div>
-            @if (c.entry; as e) {
-              <div class="hours">
-                <span class="worked">{{ e.workedHours | hours }}</span>
-                <span class="planned">/ {{ e.plannedHours | hours }}</span>
-                @if (e.meetingHours > 0) {
-                  <span class="meeting" [title]="'Reunião/treinamento: ' + (e.meetingHours | hours)">+{{ e.meetingHours | hours }}</span>
-                }
-              </div>
-              <div class="bar"><span [style.width.%]="progress(e)"
-                [class.done]="e.plannedHours > 0 && e.workedHours + e.meetingHours >= e.plannedHours"></span></div>
+            @if (c.inMonth && (c.entry || extraOf(c.date) > 0)) {
+              @if (extraOf(c.date) > 0) {
+                <div class="extra-share" [title]="'Horas avulsas rateadas: ' + (extraOf(c.date) | hours)">+{{ extraOf(c.date) | hours }} avulsa</div>
+              }
+              @if (c.entry; as e) {
+                <div class="hours">
+                  <span class="worked">{{ e.workedHours | hours }}</span>
+                  <span class="planned">/ {{ e.plannedHours | hours }}</span>
+                  @if (e.meetingHours > 0) {
+                    <span class="meeting" [title]="'Reunião/treinamento: ' + (e.meetingHours | hours)">+{{ e.meetingHours | hours }}</span>
+                  }
+                </div>
+              }
+              <div class="bar"><span [style.width.%]="progress(c.entry, c.date)" [class.done]="dayDone(c.entry, c.date)"></span></div>
             }
           </div>
         }
@@ -134,6 +147,9 @@
             @if (w.meetingHours > 0) {
               <div class="wk-line"><span>Reun.</span><b class="meeting">{{ w.meetingHours | hours }}</b></div>
             }
+            @if (w.extraHours > 0) {
+              <div class="wk-line"><span>Avuls.</span><b class="extra">{{ w.extraHours | hours }}</b></div>
+            }
             <div class="wk-line"><span>Saldo</span><b>{{ w.workedValue | brl: !showMoney() }}</b></div>
           </div>
         }
@@ -141,6 +157,9 @@
     }
   </div>
 </section>
+
+<app-extra-hours [month]="month()" [monthLabel]="monthLabel()" [weeks]="summary()?.weeks ?? []"
+                 (changed)="reloadSummary()" />
 
 <!-- Modal de edição do dia -->
 @if (editing(); as e) {

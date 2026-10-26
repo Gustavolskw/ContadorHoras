@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Entry, MonthSummary, QuestionAnswer, Settings } from './models';
+import { Entry, ExtraHours, ExtraRequest, MonthSummary, QuestionAnswer, Settings } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -25,6 +25,22 @@ export class ApiService {
 
   summary(month: string): Observable<MonthSummary> {
     return this.http.get<MonthSummary>('/api/summary', { params: { month } });
+  }
+
+  extras(month: string): Observable<ExtraHours[]> {
+    return this.http.get<ExtraHours[]>('/api/extras', { params: { month } });
+  }
+
+  createExtra(req: ExtraRequest): Observable<ExtraHours> {
+    return this.http.post<ExtraHours>('/api/extras', req);
+  }
+
+  updateExtra(id: string, req: ExtraRequest): Observable<ExtraHours> {
+    return this.http.put<ExtraHours>(`/api/extras/${id}`, req);
+  }
+
+  deleteExtra(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/extras/${id}`);
   }
 
   settings(): Observable<Settings> {

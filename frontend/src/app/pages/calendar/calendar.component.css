@@ -16,6 +16,7 @@ h2 { font-size: 15px; margin-bottom: 12px; }
 .worked { color: var(--worked); }
 .planned { color: var(--planned); }
 .meeting { color: var(--meeting); }
+.extra { color: var(--extra); }
 
 .today label { font-weight: 500; color: var(--muted); }
 .stepper.big input { font-size: 22px; font-weight: 700; padding: 6px; }
@@ -41,6 +42,7 @@ h2 { font-size: 15px; margin-bottom: 12px; }
 .dot.worked { background: var(--worked); }
 .dot.planned { background: var(--planned); }
 .dot.meeting { background: var(--meeting); }
+.dot.extra { background: var(--extra); }
 .calendar .hint { margin: 6px 0 12px; }
 .hint-touch { display: none; }
 /* Telas de toque (sem hover): mostra a dica do toque longo. */
@@ -95,6 +97,8 @@ h2 { font-size: 15px; margin-bottom: 12px; }
   .ticket-row input:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
 }
 .hours { font-variant-numeric: tabular-nums; margin-top: auto; }
+.extra-share { color: var(--extra); font-size: 11px; font-weight: 600; margin-top: auto; }
+.extra-share + .hours { margin-top: 0; }
 .hours .worked { font-weight: 700; font-size: 15px; }
 .hours .planned, .hours .meeting { font-size: 12px; }
 .hours .meeting { margin-left: 4px; }
