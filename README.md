@@ -38,6 +38,9 @@ de horas para lançar no sistema de chamados.
 - **Saldo atual** = saldo inicial + horas de chamados de todos os meses até o mês exibido.
 - Semanas que cruzam a virada do mês contam **apenas os dias do mês** (nada é contado duas vezes).
 - As horas de cada chamado somam nas horas trabalhadas do dia.
+- As horas pretendidas do dia acompanham as feitas: se trabalhadas + reunião passarem do pretendido, o
+  pretendido sobe junto (no contador, no modal, nos chamados e ao planejar o mês). Diminuir as feitas não
+  reduz o pretendido.
 
 Equivalência com a planilha original:
 
