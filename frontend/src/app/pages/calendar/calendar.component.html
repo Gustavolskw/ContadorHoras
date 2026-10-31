@@ -173,7 +173,7 @@
           <div class="stepper">
             <button type="button" (click)="stepEdit('workedHours', -1)" aria-label="Diminuir">−</button>
             <input id="m-worked" name="worked" type="number" min="0" max="24" [step]="step()"
-                   [(ngModel)]="e.workedHours" autofocus>
+                   [(ngModel)]="e.workedHours" (ngModelChange)="onDoneChange()" autofocus>
             <button type="button" (click)="stepEdit('workedHours', 1)" aria-label="Aumentar">+</button>
           </div>
         </div>
@@ -182,7 +182,7 @@
           <div class="stepper">
             <button type="button" (click)="stepEdit('meetingHours', -1)" aria-label="Diminuir">−</button>
             <input id="m-meeting" name="meeting" type="number" min="0" max="24" [step]="step()"
-                   [(ngModel)]="e.meetingHours" aria-describedby="m-meeting-hint">
+                   [(ngModel)]="e.meetingHours" (ngModelChange)="onDoneChange()" aria-describedby="m-meeting-hint">
             <button type="button" (click)="stepEdit('meetingHours', 1)" aria-label="Aumentar">+</button>
           </div>
           <p id="m-meeting-hint" class="hint">Entra no valor (R$), mas não no saldo de horas dos chamados.</p>
@@ -192,9 +192,10 @@
           <div class="stepper">
             <button type="button" (click)="stepEdit('plannedHours', -1)" aria-label="Diminuir">−</button>
             <input id="m-planned" name="planned" type="number" min="0" max="24" [step]="step()"
-                   [(ngModel)]="e.plannedHours">
+                   [(ngModel)]="e.plannedHours" (blur)="onDoneChange()" aria-describedby="m-planned-hint">
             <button type="button" (click)="stepEdit('plannedHours', 1)" aria-label="Aumentar">+</button>
           </div>
+          <p id="m-planned-hint" class="hint">Acompanha as horas feitas: nunca fica abaixo de trabalhadas + reunião.</p>
         </div>
         <fieldset class="field tickets">
           <legend>Chamados</legend>

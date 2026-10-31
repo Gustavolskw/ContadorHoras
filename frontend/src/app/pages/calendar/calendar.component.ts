@@ -168,7 +168,7 @@ export class CalendarComponent implements OnInit {
 
   setTodayWorked(value: number | string): void {
     const hours = clampHours(Number(value));
-    const entry = { ...this.todayEntry(), workedHours: hours };
+    const entry = coverPlan({ ...this.todayEntry(), workedHours: hours });
     this.todayEntry.set(entry);
     this.todaySave$.next(entry);
   }
@@ -202,6 +202,7 @@ export class CalendarComponent implements OnInit {
     const hours = clampHours(Number(value));
     e.workedHours = clampHours(e.workedHours + hours - t.hours);
     t.hours = hours;
+    coverPlan(e);
   }
 
   removeTicket(index: number): void {
@@ -209,6 +210,12 @@ export class CalendarComponent implements OnInit {
     if (!e) return;
     const [removed] = e.tickets.splice(index, 1);
     e.workedHours = clampHours(e.workedHours - removed.hours);
+  }
+
+  /** Após mudar as horas feitas (ou de reunião) no modal: as pretendidas acompanham. */
+  onDoneChange(): void {
+    const e = this.editing();
+    if (e) coverPlan(e);
   }
 
   ticketsTotal(e: EditState): number {
@@ -252,7 +259,9 @@ export class CalendarComponent implements OnInit {
 
   stepEdit(field: 'workedHours' | 'plannedHours' | 'meetingHours', direction: 1 | -1): void {
     const e = this.editing();
-    if (e) e[field] = clampHours(e[field] + direction * this.step());
+    if (!e) return;
+    e[field] = clampHours(e[field] + direction * this.step());
+    coverPlan(e);
   }
 
   save(clear = false): void {
@@ -368,4 +377,14 @@ function readFlag(key: string): boolean {
 function clampHours(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return round2(Math.min(24, Math.max(0, value)));
+}
+
+/**
+ * As horas pretendidas do dia acompanham as feitas: se trabalhadas + reunião passarem do pretendido,
+ * o pretendido sobe junto (o backend aplica a mesma regra ao salvar).
+ */
+function coverPlan<T extends { workedHours: number; meetingHours: number; plannedHours: number }>(e: T): T {
+  const done = round2(clampHours(Number(e.workedHours)) + clampHours(Number(e.meetingHours)));
+  if (clampHours(Number(e.plannedHours)) < done) e.plannedHours = Math.min(24, done);
+  return e;
 }

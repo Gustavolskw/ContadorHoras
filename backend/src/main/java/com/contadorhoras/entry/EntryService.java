@@ -81,7 +81,8 @@ public class EntryService {
             return EntryResponse.empty(iso);
         }
         entry.setWorkedHours(round(req.workedHours()));
-        entry.setPlannedHours(round(req.plannedHours()));
+        // As pretendidas acompanham as feitas: nunca ficam abaixo de trabalhadas + reunião.
+        entry.setPlannedHours(Math.max(round(req.plannedHours()), round(req.workedHours() + meeting)));
         entry.setMeetingHours(meeting);
         entry.setNote(note);
         entry.setTickets(new ArrayList<>(tickets));
@@ -110,7 +111,8 @@ public class EntryService {
             } else if (!overwrite && entry.getPlannedHours() > 0) {
                 continue;
             }
-            entry.setPlannedHours(hours);
+            // Nunca abaixo do que já foi feito no dia (trabalhadas + reunião).
+            entry.setPlannedHours(Math.max(hours, round(entry.getWorkedHours() + entry.getMeetingHours())));
             toSave.add(entry);
         }
         repository.saveAll(toSave);
